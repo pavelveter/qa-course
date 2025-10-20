@@ -1,0 +1,10 @@
+.mypy_cache
+.DS_Store
+.env
+*.pyc
+*.log
+__pycache__/
+.venv/
+venv/
+env/
+.vscode/
