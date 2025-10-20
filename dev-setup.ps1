@@ -1,7 +1,11 @@
-# ruff-black.ps1
-# Full Python Dev setup (Ruff, Black, Pytest, Requests, Mypy, UV, cSpell, CI/CD, GitLens)
-# Works for Python 3.14 ARM64 or x64
-# Run: irm http://192.168.88.45/ruff-black.ps1 | iex
+# Usage:
+#   irm http://192.168.88.47/dev-setup.ps1 | iex
+# Description:
+#   Full Python + VSCode setup for Windows (x64/ARM)
+#   Installs ruff, black, pytest, mypy, uv, requests
+#   Configures VSCode extensions and settings, creates pyproject.toml
+
+Write-Host "Configuring Python + VSCode environment..." -ForegroundColor Cyan
 
 function Ensure-InPath($name, $subpath) {
     if (-not (Test-Path $subpath)) { return }
@@ -14,29 +18,22 @@ function Ensure-InPath($name, $subpath) {
     }
 }
 
-Write-Host "Configuring full Python Dev environment..." -ForegroundColor Cyan
-
-# --- Locate Python ---
+# --- Python detection ---
 $pyCmd = Get-Command python -ErrorAction SilentlyContinue
 if (-not $pyCmd) {
-    Write-Host "Python not found. Please install from python.org and add to PATH." -ForegroundColor Red
+    Write-Host "Python not found. Please install from python.org (3.12+)." -ForegroundColor Red
     exit 1
 }
 $pythonPath = $pyCmd.Source
-Write-Host "Python: $pythonPath" -ForegroundColor Green
+Write-Host "Using Python: $pythonPath" -ForegroundColor Green
 
-# --- Detect architecture suffix (e.g. Python314-arm64) ---
-$pyBase = & $pythonPath -c "import sysconfig; print(sysconfig.get_config_var('SOABI') or '')"
-$archSuffix = if ($pyBase -match 'arm64') { 'Python314-arm64' } else { 'Python314' }
-
-# --- Define Scripts directory ---
+$archSuffix = if ([Environment]::Is64BitProcess) { "Python314-arm64" } else { "Python314" }
 $scriptDir = "$env:APPDATA\Python\$archSuffix\Scripts"
 if (-not (Test-Path $scriptDir)) {
     $scriptDir = & $pythonPath -c "import sysconfig; print(sysconfig.get_paths().get('scripts',''))"
 }
 Ensure-InPath "Python Scripts" $scriptDir
 
-# --- Git & VSCode CLI ---
 $git = Get-Command git -ErrorAction SilentlyContinue
 if ($git) { Ensure-InPath "Git" (Split-Path $git.Source) }
 
@@ -44,7 +41,7 @@ $vscodeBin = "${env:LOCALAPPDATA}\Programs\Microsoft VS Code\bin"
 Ensure-InPath "VSCode" $vscodeBin
 $code = "$vscodeBin\code.cmd"
 
-# --- pip & package installs ---
+# --- Packages ---
 & $pythonPath -m ensurepip --upgrade | Out-Null
 & $pythonPath -m pip install --upgrade pip | Out-Null
 
@@ -54,26 +51,21 @@ foreach ($pkg in $packages) {
     & $pythonPath -m pip install --upgrade $pkg | Out-Null
 }
 
-# --- Executables ---
 $blackExe = Join-Path $scriptDir "black.exe"
 $mypyExe  = Join-Path $scriptDir "mypy.exe"
 
-# --- Install VSCode extensions ---
+# --- VSCode extensions (without heavy Jupyter tools) ---
 $extensions = @(
-    # Core Python / QA
+    # Python core
     "ms-python.python",
     "ms-python.black-formatter",
     "charliermarsh.ruff",
     "ms-python.vscode-pylance",
     "ms-python.mypy-type-checker",
     "LittleFoxTeam.vscode-python-test-adapter",
-    "ms-toolsai.jupyter",
-    "ms-toolsai.datawrangler",
     "KevinRose.vsc-python-indent",
-    "ms-toolsai.vscode-jupyter-keymap",
-    "ms-toolsai.vscode-jupyter-cell-tags",
 
-    # DevOps / CI / Docker / YAML
+    # DevOps / CI
     "GitHub.vscode-github-actions",
     "ms-azuretools.vscode-docker",
     "redhat.vscode-yaml",
@@ -81,10 +73,10 @@ $extensions = @(
 
     # Git / Collaboration
     "eamodio.gitlens",
-    "GitHub.vscode-pull-requests-github",
+    "GitHub.vscode-pull-request-github",
     "mhutchie.git-graph",
 
-    # Code style / docs / utils
+    # Utils / Style
     "streetsidesoftware.code-spell-checker",
     "streetsidesoftware.code-spell-checker-russian",
     "aaron-bond.better-comments",
@@ -95,6 +87,7 @@ $extensions = @(
     "formulahendry.code-runner",
     "wmaurer.change-case"
 )
+
 foreach ($ext in $extensions) {
     $installed = & $code --list-extensions | Select-String -SimpleMatch $ext
     if (-not $installed) {
@@ -111,44 +104,44 @@ $Utf8 = New-Object System.Text.UTF8Encoding($false)
 
 $settings = @"
 {
-    "editor.formatOnSave": true,
-    "editor.formatOnSaveMode": "file",
+  "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file",
 
-    "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter",
-        "editor.codeActionsOnSave": {
-            "source.fixAll.ruff": "explicit",
-            "source.organizeImports.ruff": "explicit"
-        }
-    },
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
 
-    "python.defaultInterpreterPath": "$($pythonPath.Replace("\","\\"))",
-    "black-formatter.importStrategy": "fromEnvironment",
-    "black-formatter.path": ["$($blackExe.Replace("\","\\"))"],
+  "python.defaultInterpreterPath": "$($pythonPath.Replace("\","\\"))",
+  "black-formatter.importStrategy": "fromEnvironment",
+  "black-formatter.path": ["$($blackExe.Replace("\","\\"))"],
 
-    "python.testing.pytestEnabled": true,
-    "python.testing.unittestEnabled": false,
-    "python.testing.autoTestDiscoverOnSaveEnabled": true,
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.autoTestDiscoverOnSaveEnabled": true,
 
-    "mypy-type-checker.enabled": true,
-    "mypy-type-checker.path": ["$($mypyExe.Replace("\","\\"))"],
+  "mypy-type-checker.enabled": true,
+  "mypy-type-checker.path": ["$($mypyExe.Replace("\","\\"))"],
 
-    "python.languageServer": "Pylance",
-    "python.analysis.typeCheckingMode": "basic",
-    "python.analysis.diagnosticMode": "workspace",
+  "python.languageServer": "Pylance",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.diagnosticMode": "workspace",
 
-    "cSpell.language": "en,ru",
-    "cSpell.enableFiletypes": ["python","json","yaml","markdown"],
-    "cSpell.ignoreWords": ["pytest","asyncio","uvicorn","FastAPI","Pydantic"],
+  "cSpell.language": "en,ru",
+  "cSpell.enableFiletypes": ["python","json","yaml","markdown"],
+  "cSpell.ignoreWords": ["pytest","asyncio","uvicorn","FastAPI","Pydantic"],
 
-    "chat.disableAIFeatures": true,
-    "chat.commandCenter.enabled": false
+  "chat.disableAIFeatures": true,
+  "chat.commandCenter.enabled": false
 }
 "@
 [System.IO.File]::WriteAllText($settingsPath, $settings, $Utf8)
-Write-Host "VSCode settings.json written." -ForegroundColor Green
+Write-Host "VSCode settings.json updated." -ForegroundColor Green
 
-# --- Global pyproject.toml ---
+# --- pyproject.toml ---
 $pyprojectPath = Join-Path $HOME "pyproject.toml"
 $pyproject = @"
 [tool.black]
@@ -179,4 +172,4 @@ check_untyped_defs = true
 [System.IO.File]::WriteAllText($pyprojectPath, $pyproject, $Utf8)
 Write-Host "pyproject.toml created at $pyprojectPath" -ForegroundColor Green
 
-Write-Host "Setup complete. Restart VSCode and PowerShell for PATH refresh." -ForegroundColor Cyan
+Write-Host "Setup complete. Restart VSCode to apply settings." -ForegroundColor Cyan
