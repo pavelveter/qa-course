@@ -5,6 +5,7 @@ from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
+DATA_CSV = "data.csv"
 ALLOWED_PRIORITIES = {"P1", "P2", "P3"}
 
 print("!")
@@ -25,9 +26,9 @@ def validate_row(row: dict) -> list[str]:
 
 
 def main() -> None:
-    csv_path = Path("data.csv")
+    csv_path = Path(DATA_CSV)
     if not csv_path.exists():
-        logging.error("data.csv not found")
+        logging.error(f"{DATA_CSV} not found")
         return
 
     with csv_path.open("r", encoding="utf-8", newline="") as f:
